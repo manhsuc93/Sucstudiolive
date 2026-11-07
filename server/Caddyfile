@@ -1,0 +1,4 @@
+# Replace this hostname with a domain/subdomain whose DNS A record points to your VPS.
+stream.YOUR-DOMAIN.vn {
+    reverse_proxy mediamtx:8889
+}

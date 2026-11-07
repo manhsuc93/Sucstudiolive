@@ -1,0 +1,65 @@
+# Live Studio: each WHIP path relays to exactly ONE selected destination.
+# Replace every CHANGE_ME value before starting the server.
+logLevel: info
+
+rtsp: true
+rtspAddress: :8554
+rtspTransports: [tcp]
+
+webrtc: true
+webrtcAddress: :8889
+webrtcAllowOrigins: ["https://YOUR-APP-DOMAIN.example", "https://localhost", "capacitor://localhost", "http://localhost"]
+webrtcLocalUDPAddress: :8189
+webrtcLocalTCPAddress: :8189
+webrtcAdditionalHosts: ["stream.YOUR-DOMAIN.vn"]
+
+authMethod: internal
+authInternalUsers:
+  - user: studio
+    pass: CHANGE_ME_STUDIO_PASSWORD
+    ips: []
+    permissions:
+      - action: publish
+        path: youtube
+      - action: publish
+        path: facebook
+      - action: publish
+        path: custom
+  - user: relay
+    pass: CHANGE_ME_RELAY_PASSWORD
+    ips: [127.0.0.1]
+    permissions:
+      - action: read
+        path: youtube
+      - action: read
+        path: facebook
+      - action: read
+        path: custom
+
+paths:
+  youtube:
+    source: publisher
+    runOnReady: >-
+      ffmpeg -hide_banner -loglevel warning -rtsp_transport tcp
+      -i rtsp://relay:CHANGE_ME_RELAY_PASSWORD@127.0.0.1:8554/youtube
+      -map 0:v:0 -map 0:a:0 -c:v copy -c:a aac -b:a 128k -ar 44100 -ac 2
+      -f flv "rtmps://a.rtmps.youtube.com/live2/CHANGE_ME_YOUTUBE_STREAM_KEY"
+    runOnReadyRestart: yes
+
+  facebook:
+    source: publisher
+    runOnReady: >-
+      ffmpeg -hide_banner -loglevel warning -rtsp_transport tcp
+      -i rtsp://relay:CHANGE_ME_RELAY_PASSWORD@127.0.0.1:8554/facebook
+      -map 0:v:0 -map 0:a:0 -c:v copy -c:a aac -b:a 128k -ar 44100 -ac 2
+      -f flv "rtmps://live-api-s.facebook.com:443/rtmp/CHANGE_ME_FACEBOOK_STREAM_KEY"
+    runOnReadyRestart: yes
+
+  custom:
+    source: publisher
+    runOnReady: >-
+      ffmpeg -hide_banner -loglevel warning -rtsp_transport tcp
+      -i rtsp://relay:CHANGE_ME_RELAY_PASSWORD@127.0.0.1:8554/custom
+      -map 0:v:0 -map 0:a:0 -c:v copy -c:a aac -b:a 128k -ar 44100 -ac 2
+      -f flv "CHANGE_ME_CUSTOM_RTMP_URL_WITH_KEY"
+    runOnReadyRestart: yes

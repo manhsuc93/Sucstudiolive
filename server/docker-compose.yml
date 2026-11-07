@@ -1,0 +1,32 @@
+services:
+  mediamtx:
+    image: bluenviron/mediamtx:1-ffmpeg
+    container_name: sucstudio-mediamtx
+    restart: unless-stopped
+    volumes:
+      - ./mediamtx.yml:/mediamtx.yml:ro
+    expose:
+      - "8889"
+      - "8554"
+    ports:
+      - "8189:8189/udp"
+      - "8189:8189/tcp"
+
+  caddy:
+    image: caddy:2
+    container_name: sucstudio-caddy
+    restart: unless-stopped
+    depends_on:
+      - mediamtx
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:
