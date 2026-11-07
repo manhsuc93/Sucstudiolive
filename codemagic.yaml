@@ -1,1 +1,46 @@
-
+workflows:
+  live-studio-ios-unsigned:
+    name: Live Studio V16.1 - iOS build check (unsigned)
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      xcode: latest
+      node: 22
+      cocoapods: default
+    scripts:
+      - name: Unpack Live Studio source
+        script: |
+          unzip -q Live-Studio-Capacitor-Android-iOS-Manual-Destination-v16.1-verified.zip -d source
+          cd source/Livestreamapp-main
+          npm install
+          npm run web:sync
+      - name: Generate Capacitor iOS project
+        script: |
+          cd "$CM_BUILD_DIR/source/Livestreamapp-main"
+          npx cap add ios
+          npx cap sync ios
+      - name: Add iOS camera and microphone permission descriptions
+        script: |
+          cd "$CM_BUILD_DIR/source/Livestreamapp-main"
+          PLIST="ios/App/App/Info.plist"
+          /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string Live Studio cần camera để phát hình ảnh trực tiếp." "$PLIST" || /usr/libexec/PlistBuddy -c "Set :NSCameraUsageDescription Live Studio cần camera để phát hình ảnh trực tiếp." "$PLIST"
+          /usr/libexec/PlistBuddy -c "Add :NSMicrophoneUsageDescription string Live Studio cần micro để phát âm thanh trực tiếp." "$PLIST" || /usr/libexec/PlistBuddy -c "Set :NSMicrophoneUsageDescription Live Studio cần micro để phát âm thanh trực tiếp." "$PLIST"
+      - name: Install CocoaPods
+        script: |
+          cd "$CM_BUILD_DIR/source/Livestreamapp-main/ios/App"
+          pod install
+      - name: Compile iOS app without signing
+        script: |
+          cd "$CM_BUILD_DIR/source/Livestreamapp-main"
+          xcodebuild \
+            -workspace ios/App/App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build/ios \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+    artifacts:
+      - source/Livestreamapp-main/build/ios/Build/Products/Release-iphoneos/App.app
+      - /tmp/xcodebuild_logs/*.log
