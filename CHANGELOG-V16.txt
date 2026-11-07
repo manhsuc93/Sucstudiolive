@@ -1,0 +1,21 @@
+LIVE STUDIO V16 - CHANGELOG
+
+- Removed the social platform chat tab, simulated chat messages, and chat overlay rendering.
+- Added manual destination selection: YouTube Live, Facebook Live, or custom RTMP configured on VPS.
+- The app now builds a single WHIP endpoint for the selected destination.
+- Destination selector is locked while connecting/live; user must stop before switching.
+- Reworked MediaMTX paths into youtube/facebook/custom. Each path runs one FFmpeg process with exactly one RTMP output.
+- Removed the former dual YouTube + Facebook FFmpeg output.
+- Updated Vietnamese setup and Capacitor release documentation.
+- Added Capacitor WebView origins to the WebRTC allow-origin list.
+- Kept stream keys on VPS only; no social platform credentials in the mobile app.
+
+Validation performed:
+- JavaScript syntax check passed for all inline script blocks.
+- YAML parsed successfully.
+- Each of the three server paths contains exactly one `-f flv` output.
+- Verified no chat-related code or UI remains in the app HTML.
+
+Not performed:
+- No live VPS/RTMP test (requires user's domain, passwords and platform stream keys).
+- No Android Gradle build, iOS Xcode build, signing, or physical-device test.
