@@ -4,7 +4,6 @@ const config: CapacitorConfig = {
   appId: 'vn.livestudio.mobile',
   appName: 'Live Studio',
   webDir: 'www',
-  bundledWebRuntime: false,
   ios: {
     contentInset: 'automatic',
     scrollEnabled: true,
