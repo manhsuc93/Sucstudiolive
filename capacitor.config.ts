@@ -5,23 +5,23 @@ const config: CapacitorConfig = {
   appName: 'Live Studio',
   webDir: 'www',
   bundledWebRuntime: false,
+  ios: {
+    contentInset: 'automatic',
+    scrollEnabled: true,
+    allowsLinkPreview: false
+  },
   android: {
     allowMixedContent: false,
     captureInput: true
   },
-  ios: {
-    contentInset: 'automatic',
-    scrollEnabled: true
-  },
   plugins: {
     SplashScreen: {
-      launchShowDuration: 1200,
+      launchShowDuration: 1000,
       backgroundColor: '#0b1220',
       showSpinner: false
     },
     StatusBar: {
-      style: 'DARK',
-      backgroundColor: '#0b1220'
+      style: 'DARK'
     },
     Keyboard: {
       resize: 'body',

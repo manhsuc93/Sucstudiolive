@@ -1,7 +1,6 @@
-
 workflows:
   live-studio-ios-unsigned:
-    name: Live Studio V16.1 - Unsigned IPA Download
+    name: Live Studio V16.1 - iOS unsigned build
     max_build_duration: 60
     instance_type: mac_mini_m2
 
@@ -11,76 +10,74 @@ workflows:
       cocoapods: default
 
     scripts:
-      - name: Install dependencies and prepare web files
+      - name: Check source files
         script: |
-          set -e
-          npm install
-          npm run web:sync
+          set -euo pipefail
+          test -f Studio_Livestream.html
+          test -f package.json
+          test -f capacitor.config.ts
 
-      - name: Generate Capacitor iOS project
+      - name: Install JavaScript dependencies
         script: |
-          set -e
+          set -euo pipefail
+          npm install --no-audit --no-fund
+
+      - name: Prepare web app
+        script: |
+          set -euo pipefail
+          npm run web:sync
+          test -s www/index.html
+
+      - name: Create and synchronize native iOS project
+        script: |
+          set -euo pipefail
           npx cap add ios
           npx cap sync ios
+          test -f ios/App/App/Info.plist
+          test -d ios/App/App.xcworkspace
 
-      - name: Configure camera and microphone permissions
+      - name: Set iOS privacy permission descriptions
         script: |
-          set -e
+          set -euo pipefail
           PLIST="ios/App/App/Info.plist"
+          /usr/libexec/PlistBuddy -c "Set :NSCameraUsageDescription Live Studio cần camera để xem trước và phát hình ảnh." "$PLIST" 2>/dev/null \
+            || /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string Live Studio cần camera để xem trước và phát hình ảnh." "$PLIST"
+          /usr/libexec/PlistBuddy -c "Set :NSMicrophoneUsageDescription Live Studio cần micro để thu và phát âm thanh." "$PLIST" 2>/dev/null \
+            || /usr/libexec/PlistBuddy -c "Add :NSMicrophoneUsageDescription string Live Studio cần micro để thu và phát âm thanh." "$PLIST"
 
-          /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string Live Studio cần camera để phát hình ảnh trực tiếp." "$PLIST" || /usr/libexec/PlistBuddy -c "Set :NSCameraUsageDescription Live Studio cần camera để phát hình ảnh trực tiếp." "$PLIST"
-
-          /usr/libexec/PlistBuddy -c "Add :NSMicrophoneUsageDescription string Live Studio cần micro để phát âm thanh trực tiếp." "$PLIST" || /usr/libexec/PlistBuddy -c "Set :NSMicrophoneUsageDescription Live Studio cần micro để phát âm thanh trực tiếp." "$PLIST"
-
-      - name: Install CocoaPods
+      - name: Build iOS app without code signing
         script: |
-          set -e
-          cd ios/App
-          pod install
-          cd ../..
-
-      - name: Compile iOS application without signing
-        script: |
-          set -e
+          set -euo pipefail
           xcodebuild \
             -workspace ios/App/App.xcworkspace \
             -scheme App \
             -configuration Release \
             -sdk iphoneos \
             -destination 'generic/platform=iOS' \
-            -derivedDataPath build/ios \
+            -derivedDataPath "$CM_BUILD_DIR/build/ios" \
             CODE_SIGNING_ALLOWED=NO \
             build
 
-      - name: Package unsigned IPA and ZIP download
+      - name: Package unsigned IPA
         script: |
-          set -e
-
+          set -euo pipefail
           APP_PATH="$CM_BUILD_DIR/build/ios/Build/Products/Release-iphoneos/App.app"
           STAGE="$CM_BUILD_DIR/ipa-staging"
 
-          if [ ! -d "$APP_PATH" ]; then
-            echo "ERROR: Cannot find App.app"
-            exit 1
-          fi
-
+          test -d "$APP_PATH"
           rm -rf "$STAGE"
           mkdir -p "$STAGE/Payload"
-
           ditto "$APP_PATH" "$STAGE/Payload/App.app"
 
           cd "$STAGE"
           /usr/bin/zip -qry "$CM_BUILD_DIR/LiveStudio-V16.1-unsigned.ipa" Payload
 
           cd "$CM_BUILD_DIR"
-          /usr/bin/zip -q LiveStudio-V16.1-download.zip LiveStudio-V16.1-unsigned.ipa
-
-          echo "CREATED FILES:"
-          ls -lh "$CM_BUILD_DIR/LiveStudio-V16.1-unsigned.ipa"
-          ls -lh "$CM_BUILD_DIR/LiveStudio-V16.1-download.zip"
+          /usr/bin/zip -q LiveStudio-V16.1-unsigned-download.zip LiveStudio-V16.1-unsigned.ipa
+          ls -lh LiveStudio-V16.1-unsigned.ipa LiveStudio-V16.1-unsigned-download.zip
 
     artifacts:
       - LiveStudio-V16.1-unsigned.ipa
-      - LiveStudio-V16.1-download.zip
+      - LiveStudio-V16.1-unsigned-download.zip
       - build/ios/Build/Products/Release-iphoneos/App.app
       - /tmp/xcodebuild_logs/*.log

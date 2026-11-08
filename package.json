@@ -1,31 +1,27 @@
-
 {
   "name": "live-studio-mobile",
-  "version": "1.1.0",
+  "version": "16.1.0",
   "private": true,
-  "description": "Live Studio mobile app for Android and iOS using Capacitor",
+  "description": "Live Studio V16.1 - Capacitor iOS and Android shell",
   "scripts": {
     "web:sync": "node scripts/sync-web.mjs",
     "cap:sync": "npm run web:sync && cap sync",
-    "android:add": "cap add android",
     "ios:add": "cap add ios",
-    "android:open": "cap open android",
-    "ios:open": "cap open ios",
-    "android:build": "npm run cap:sync && cap build android",
-    "ios:build": "npm run cap:sync && cap build ios"
+    "ios:sync": "npm run web:sync && cap sync ios",
+    "android:add": "cap add android",
+    "android:sync": "npm run web:sync && cap sync android"
   },
   "dependencies": {
-    "@capacitor/android": "^7.4.3",
-    "@capacitor/app": "^7.1.0",
-    "@capacitor/core": "^7.4.3",
-    "@capacitor/ios": "^7.4.3",
-    "@capacitor/keyboard": "^7.0.3",
-    "@capacitor/share": "^7.0.2",
-    "@capacitor/splash-screen": "^7.0.3",
-    "@capacitor/status-bar": "^7.0.3"
+    "@capacitor/android": "7.4.3",
+    "@capacitor/app": "7.1.0",
+    "@capacitor/core": "7.4.3",
+    "@capacitor/ios": "7.4.3",
+    "@capacitor/keyboard": "7.0.3",
+    "@capacitor/share": "7.0.2",
+    "@capacitor/splash-screen": "7.0.3",
+    "@capacitor/status-bar": "7.0.3"
   },
   "devDependencies": {
-    "@capacitor/cli": "^7.4.3",
-    "typescript": "~5.9.3"
+    "@capacitor/cli": "7.4.3"
   }
 }
