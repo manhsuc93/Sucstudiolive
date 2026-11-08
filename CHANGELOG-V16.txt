@@ -19,3 +19,9 @@ Validation performed:
 Not performed:
 - No live VPS/RTMP test (requires user's domain, passwords and platform stream keys).
 - No Android Gradle build, iOS Xcode build, signing, or physical-device test.
+
+V16.1 package audit / RTMP transition:
+- Rebuilt www/ from Studio_Livestream.html to remove stale legacy UI from the Capacitor webDir.
+- Removed obsolete VPS / MediaMTX / FFmpeg relay configuration and legacy UI snapshot.
+- Updated documentation to accurately state that native RtmpPublisher is not yet implemented.
+- Inline JavaScript syntax checked; native builds and real RTMP streaming remain untested.

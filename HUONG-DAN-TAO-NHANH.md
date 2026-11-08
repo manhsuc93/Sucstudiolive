@@ -1,34 +1,37 @@
-# Live Studio V16.1 — bộ mã nền iOS
+# Sucstudiolive — hướng dẫn đồng bộ mã nguồn
 
-## Mục đích
-Bộ này thay thế các tệp cấu hình và script dựng ứng dụng. Tệp giao diện `Studio_Livestream.html` được giữ nguyên, không viết lại hoặc đổi thiết kế.
+## Trạng thái
+Dự án dùng Capacitor 7. Tệp giao diện chính là `Studio_Livestream.html`; script `scripts/sync-web.mjs` tạo lại thư mục `www/` để Capacitor đóng gói.
 
-## Những tệp cần thay trên GitHub
-- `package.json`
-- `capacitor.config.ts`
-- `codemagic.yaml`
-- `.gitignore`
-- `scripts/sync-web.mjs`
+## Đồng bộ giao diện
+Sau khi sửa giao diện, chạy:
 
-Không xóa hoặc đổi tên:
-- `Studio_Livestream.html`
-- `manifest.json`
-- `sw.js`
-- `icons/` (nếu repo đang có)
-- `screenshots/` (nếu repo đang có)
-- `server/` (nếu repo đang có)
+```bash
+npm run web:sync
+```
 
-## Tạo nhánh trên GitHub bằng iPhone
-1. Mở repo `manhsuc93/Sucstudiolive`.
-2. Chạm nút chọn nhánh đang hiện `main`.
-3. Nhập `rebuild/ios-foundation`.
-4. Chọn tạo nhánh mới từ `main`.
-5. Mở từng tệp ở danh sách trên, chọn Edit (biểu tượng bút), thay toàn bộ nội dung bằng tệp tương ứng trong bộ mã này, rồi Commit changes vào nhánh `rebuild/ios-foundation`.
+## Tạo dự án native
+Cần Node.js 20+ và npm.
 
-Nếu muốn tách việc dựng iOS khỏi cấu hình nền, sau khi nhánh nền ổn định có thể tạo nhánh thứ hai tên `rebuild/ios-build` từ nhánh `rebuild/ios-foundation`. Chưa cần tạo nhánh thứ hai ngay.
+```bash
+npm install
+npm run android:add
+npm run cap:sync
+```
 
-## Quan trọng về IPA
-Workflow trong bộ này tạo **IPA chưa ký (unsigned)**. File này dùng để kiểm tra build, không thể cài trực tiếp lên iPhone thông thường. Muốn cài trên iPhone XS Max iOS 18.7.2 cần ký ứng dụng bằng chứng chỉ và provisioning profile hợp lệ hoặc dùng phương thức sideload tương thích. Không có cách biến IPA unsigned thành IPA cài được chỉ bằng đổi tên file.
+Để tạo dự án iOS cần máy macOS có Xcode:
 
-## Giới hạn chức năng
-Bộ này làm sạch phần cấu hình đóng gói iOS và đồng bộ giao diện web. Nó không tự tạo máy chủ livestream. Chức năng phát WHIP/RTMP còn phụ thuộc máy chủ HTTPS/WHIP và cấu hình tài khoản/đích phát. Không nên coi build thành công là bằng chứng camera, ghi hình và livestream đã được kiểm thử thực tế trên iPhone.
+```bash
+npm run ios:add
+npm run cap:sync
+```
+
+## Lưu ý quan trọng về RTMP
+Giao diện hiện có các trường RTMP URL/Stream Key và lời gọi Capacitor `RtmpPublisher`. Tuy nhiên plugin native `RtmpPublisher` chưa có trong gói mã này. Vì vậy app chưa phát RTMP thật; không thể cài PWA rồi mong phát RTMP trực tiếp từ trình duyệt.
+
+Muốn hoàn thiện cần plugin native Android/iOS tự quản lý camera, micro, preview, H.264/AAC encoder và RTMP/RTMPS connection. Các lớp đồ họa cần được chuyển vào native compositor để xuất hiện trong video live.
+
+## Phát hành
+- Android: Android Studio + Android SDK; cần build và ký APK/AAB.
+- iOS: macOS + Xcode; cần Bundle ID, Team và signing/provisioning profile hợp lệ.
+- Chỉ build thành công không có nghĩa là livestream đã được kiểm thử. Phải test trên thiết bị thật và xác nhận video/âm thanh ở đích phát.

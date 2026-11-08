@@ -351,7 +351,7 @@
                         <i data-lucide="radio" class="w-4 h-4 text-red-400"></i> Phát RTMP trực tiếp
                     </label>
                     <div class="rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-3 text-[11px] leading-relaxed text-emerald-100">
-                        Nhập địa chỉ RTMP/RTMPS và Stream Key do YouTube, Facebook hoặc máy chủ RTMP cung cấp. Ứng dụng sẽ gửi luồng thẳng đến máy chủ đích, không qua WHIP hay VPS relay.
+                        Nhập địa chỉ RTMP/RTMPS và Stream Key do YouTube, Facebook hoặc máy chủ RTMP cung cấp. Ứng dụng sẽ gửi luồng thẳng đến máy chủ đích, không qua máy chủ trung gian.
                     </div>
                     <div class="space-y-2 text-xs">
                         <label class="text-slate-400 block" for="destinationSelect">Nền tảng đích</label>
@@ -666,8 +666,8 @@
       async function startLiveStream(){
         const url=document.getElementById('rtmpUrl')?.value.trim()||'';
         const key=document.getElementById('rtmpKey')?.value.trim()||'';
-        if(!isCamOn){setStatus('Hãy bật Camera trước khi phát.');return;}
-        if(!isMicOn){setStatus('Hãy bật Micro trước khi phát.');return;}
+        // Native publisher captures camera and microphone itself. WebView preview toggles
+        // are intentionally not used as proof of native capture readiness.
         try{const parsed=new URL(url);if(!['rtmp:','rtmps:'].includes(parsed.protocol))throw new Error('URL phải dùng giao thức RTMP hoặc RTMPS.');if(!key)throw new Error('Chưa nhập Stream Key.');}
         catch(e){setStatus('Thông tin RTMP chưa hợp lệ: '+e.message);switchTab('settings');return;}
         // Capacitor native plugin must own camera/mic capture + H.264/AAC encoding + RTMP socket.
@@ -678,8 +678,9 @@
         try{
           const quality=Number(document.getElementById('streamQuality')?.value||4500);
           const portrait=canvasRatio==='9:16';
-          const result=await plugin.start({url,key,video:{codec:'h264',width:quality===2500?(portrait?720:1280):(portrait?1080:1920),height:quality===2500?(portrait?1280:720):(portrait?1920:1080),fps:30,bitrate:quality*1000},audio:{codec:'aac',bitrate:128000,sampleRate:44100,channels:2},cameraFacing:window.preferredCameraFacing||'user'});
-          rtmpPublisher=plugin;isLive=true;streamStartTime=Date.now();timerInterval=setInterval(updateTimer,1000);setLiveUi('live',result?.message||'Đã yêu cầu module native phát RTMP trực tiếp.');
+          const overlay={banner:{enabled:showBanner,title:document.getElementById('overlayTitle')?.value||'LIVESTREAM TRỰC TIẾP',subtitle:document.getElementById('overlaySubtitle')?.value||'',backgroundColor:document.getElementById('bannerBgColor')?.value||'#2563eb'},ticker:{enabled:showTicker,text:document.getElementById('tickerText')?.value||''},scoreboard:{enabled:showScoreboard,teamA:document.getElementById('teamAName')?.value||'ĐỘI A',teamB:document.getElementById('teamBName')?.value||'ĐỘI B',scoreA,scoreB},logo:logoImage?{dataUrl:(()=>{const c=document.createElement('canvas');c.width=logoImage.naturalWidth||logoImage.width;c.height=logoImage.naturalHeight||logoImage.height;c.getContext('2d').drawImage(logoImage,0,0);return c.toDataURL('image/png');})(),position:document.getElementById('logoPosition')?.value||'top-right'}:null};
+          const result=await plugin.start({url,key,video:{codec:'h264',width:quality===2500?(portrait?720:1280):(portrait?1080:1920),height:quality===2500?(portrait?1280:720):(portrait?1920:1080),fps:30,bitrate:quality*1000},audio:{codec:'aac',bitrate:128000,sampleRate:44100,channels:2},cameraFacing:window.preferredCameraFacing||'user',overlay,requireNativeCapture:true});
+          rtmpPublisher=plugin;isLive=true;streamStartTime=Date.now();timerInterval=setInterval(updateTimer,1000);setLiveUi('live',result?.message||'Native publisher xác nhận đã bắt đầu phát RTMP.');
         }catch(err){rtmpPublisher=null;isLive=false;setLiveUi('idle','Không thể bắt đầu RTMP: '+(err.message||err));}
       }
       async function stopLiveStream(update=true){

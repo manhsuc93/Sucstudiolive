@@ -1,7 +1,7 @@
-# Live Studio — Capacitor Android/iOS
+# Sucstudiolive
 
-This package publishes **one selected destination at a time**. The operator manually selects YouTube Live, Facebook Live, or a preconfigured custom RTMP destination, ends the current session, and starts a new session to switch. No social-platform chat integration or simultaneous multistreaming is included.
+Ứng dụng studio livestream dùng Capacitor 7. Mục tiêu chuyển sang RTMP/RTMPS trực tiếp từ thiết bị, không dùng VPS relay hoặc WHIP.
 
-- `README-CAPACITOR-VI.md`: Android/iOS project setup and release checklist.
-- `server/README-VI.txt`: VPS setup and one-destination relay configuration.
-- `README.txt`: application overview and operating instructions.
+Đọc `README-CAPACITOR-VI.md` để xem trạng thái triển khai, giới hạn hiện tại và hướng dẫn build.
+
+**Lưu ý:** Gói hiện tại mới có giao diện RTMP và JavaScript bridge contract; plugin native `RtmpPublisher` chưa được triển khai nên chưa thể phát RTMP thật.
