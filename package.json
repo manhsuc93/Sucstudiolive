@@ -1,3 +1,4 @@
+
 {
   "name": "live-studio-mobile",
   "version": "1.1.0",
@@ -23,9 +24,8 @@
     "@capacitor/splash-screen": "^7.0.3",
     "@capacitor/status-bar": "^7.0.3"
   },
-    "devDependencies": {
-  "@capacitor/cli": "^7.4.3",
-  "typescript": "~5.9.3"
-}
+  "devDependencies": {
+    "@capacitor/cli": "^7.4.3",
+    "typescript": "~5.9.3"
   }
 }
