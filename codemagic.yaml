@@ -1,7 +1,7 @@
 
 workflows:
   live-studio-ios-unsigned:
-    name: Live Studio V16.1 - iOS build check
+    name: Live Studio V16.1 - Unsigned IPA
     max_build_duration: 60
     instance_type: mac_mini_m2
 
@@ -31,9 +31,11 @@ workflows:
         script: |
           cd ios/App
           pod install
+          cd ../..
 
       - name: Compile iOS application without signing
         script: |
+          set -e
           xcodebuild \
             -workspace ios/App/App.xcworkspace \
             -scheme App \
@@ -44,6 +46,30 @@ workflows:
             CODE_SIGNING_ALLOWED=NO \
             build
 
+      - name: Package unsigned IPA for TrollStore
+        script: |
+          set -e
+
+          APP_PATH="$CM_BUILD_DIR/build/ios/Build/Products/Release-iphoneos/App.app"
+          STAGE="$CM_BUILD_DIR/ipa-staging"
+
+          if [ ! -d "$APP_PATH" ]; then
+            echo "ERROR: Cannot find App.app"
+            exit 1
+          fi
+
+          rm -rf "$STAGE"
+          mkdir -p "$STAGE/Payload"
+
+          ditto "$APP_PATH" "$STAGE/Payload/App.app"
+
+          cd "$STAGE"
+          /usr/bin/zip -qry "$CM_BUILD_DIR/LiveStudio-V16.1-unsigned.ipa" Payload
+
+          echo "IPA PACKAGE CREATED:"
+          ls -lh "$CM_BUILD_DIR/LiveStudio-V16.1-unsigned.ipa"
+
     artifacts:
+      - LiveStudio-V16.1-unsigned.ipa
       - build/ios/Build/Products/Release-iphoneos/App.app
       - /tmp/xcodebuild_logs/*.log
