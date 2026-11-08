@@ -1,83 +1,95 @@
 workflows:
-  live-studio-ios-unsigned:
-    name: Live Studio V16.1 - iOS unsigned build
+  live-studio-android-debug:
+    name: Sucstudiolive - Android test APK
     max_build_duration: 60
-    instance_type: mac_mini_m2
-
+    instance_type: linux_x2
     environment:
-      xcode: latest
       node: v22.11.0
-      cocoapods: default
-
+      java: 17
     scripts:
-      - name: Check source files
+      - name: Check project files
         script: |
           set -euo pipefail
-          test -f Studio_Livestream.html
           test -f package.json
           test -f capacitor.config.ts
-
-      - name: Install JavaScript dependencies
+          test -f Studio_Livestream.html
+      - name: Install dependencies
         script: |
           set -euo pipefail
           npm install --no-audit --no-fund
-
-      - name: Prepare web app
+      - name: Prepare web assets
         script: |
           set -euo pipefail
           npm run web:sync
           test -s www/index.html
+      - name: Generate Android project and sync plugins
+        script: |
+          set -euo pipefail
+          npx cap add android
+          npx cap sync android
+          test -x android/gradlew
+      - name: Build debug APK
+        script: |
+          set -euo pipefail
+          cd android
+          ./gradlew --no-daemon assembleDebug
+          test -s app/build/outputs/apk/debug/app-debug.apk
+    artifacts:
+      - android/app/build/outputs/apk/debug/*.apk
+      - android/app/build/outputs/mapping/**/mapping.txt
+      - /tmp/gradle/**
 
-      - name: Create and synchronize native iOS project
+  live-studio-ios-unsigned:
+    name: Sucstudiolive - iOS unsigned build
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      xcode: latest
+      node: v22.11.0
+      cocoapods: default
+    scripts:
+      - name: Check project files
+        script: |
+          set -euo pipefail
+          test -f package.json
+          test -f capacitor.config.ts
+          test -f Studio_Livestream.html
+      - name: Install dependencies
+        script: |
+          set -euo pipefail
+          npm install --no-audit --no-fund
+      - name: Prepare web assets
+        script: |
+          set -euo pipefail
+          npm run web:sync
+          test -s www/index.html
+      - name: Generate iOS project and sync plugins
         script: |
           set -euo pipefail
           npx cap add ios
           npx cap sync ios
           test -f ios/App/App/Info.plist
-          test -d ios/App/App.xcworkspace
-
-      - name: Set iOS privacy permission descriptions
+      - name: Add camera and microphone descriptions
         script: |
           set -euo pipefail
           PLIST="ios/App/App/Info.plist"
-          /usr/libexec/PlistBuddy -c "Set :NSCameraUsageDescription Live Studio cần camera để xem trước và phát hình ảnh." "$PLIST" 2>/dev/null \
-            || /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string Live Studio cần camera để xem trước và phát hình ảnh." "$PLIST"
-          /usr/libexec/PlistBuddy -c "Set :NSMicrophoneUsageDescription Live Studio cần micro để thu và phát âm thanh." "$PLIST" 2>/dev/null \
-            || /usr/libexec/PlistBuddy -c "Add :NSMicrophoneUsageDescription string Live Studio cần micro để thu và phát âm thanh." "$PLIST"
-
-      - name: Build iOS app without code signing
+          /usr/libexec/PlistBuddy -c "Set :NSCameraUsageDescription Sucstudiolive cần camera để phát hình ảnh." "$PLIST" 2>/dev/null || /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string Sucstudiolive cần camera để phát hình ảnh." "$PLIST"
+          /usr/libexec/PlistBuddy -c "Set :NSMicrophoneUsageDescription Sucstudiolive cần micro để phát âm thanh." "$PLIST" 2>/dev/null || /usr/libexec/PlistBuddy -c "Add :NSMicrophoneUsageDescription string Sucstudiolive cần micro để phát âm thanh." "$PLIST"
+      - name: Build iOS app (unsigned)
         script: |
           set -euo pipefail
-          xcodebuild \
-            -workspace ios/App/App.xcworkspace \
-            -scheme App \
-            -configuration Release \
-            -sdk iphoneos \
-            -destination 'generic/platform=iOS' \
-            -derivedDataPath "$CM_BUILD_DIR/build/ios" \
-            CODE_SIGNING_ALLOWED=NO \
-            build
-
+          xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath "$CM_BUILD_DIR/build/ios" CODE_SIGNING_ALLOWED=NO build
       - name: Package unsigned IPA
         script: |
           set -euo pipefail
           APP_PATH="$CM_BUILD_DIR/build/ios/Build/Products/Release-iphoneos/App.app"
           STAGE="$CM_BUILD_DIR/ipa-staging"
-
           test -d "$APP_PATH"
-          rm -rf "$STAGE"
           mkdir -p "$STAGE/Payload"
           ditto "$APP_PATH" "$STAGE/Payload/App.app"
-
           cd "$STAGE"
-          /usr/bin/zip -qry "$CM_BUILD_DIR/LiveStudio-V16.1-unsigned.ipa" Payload
-
-          cd "$CM_BUILD_DIR"
-          /usr/bin/zip -q LiveStudio-V16.1-unsigned-download.zip LiveStudio-V16.1-unsigned.ipa
-          ls -lh LiveStudio-V16.1-unsigned.ipa LiveStudio-V16.1-unsigned-download.zip
-
+          zip -qry "$CM_BUILD_DIR/Sucstudiolive-iOS-unsigned.ipa" Payload
     artifacts:
-      - LiveStudio-V16.1-unsigned.ipa
-      - LiveStudio-V16.1-unsigned-download.zip
+      - Sucstudiolive-iOS-unsigned.ipa
       - build/ios/Build/Products/Release-iphoneos/App.app
       - /tmp/xcodebuild_logs/*.log

@@ -9,7 +9,11 @@
     "ios:add": "cap add ios",
     "ios:sync": "npm run web:sync && cap sync ios",
     "android:add": "cap add android",
-    "android:sync": "npm run web:sync && cap sync android"
+    "android:sync": "npm run web:sync && cap sync android",
+    "android:open": "cap open android",
+    "ios:open": "cap open ios",
+    "android:build:debug": "npm run android:sync && cd android && ./gradlew assembleDebug",
+    "check:source": "node --check scripts/sync-web.mjs"
   },
   "dependencies": {
     "@capacitor/android": "7.4.3",
