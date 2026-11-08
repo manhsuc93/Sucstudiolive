@@ -8,18 +8,24 @@ const root = path.resolve(
   '..'
 );
 
-const source = path.join(root, 'Studio_Livestream.html');
-const web = path.join(root, 'www');
+const sourceHtml = path.join(root, 'Studio_Livestream.html');
+const webDir = path.join(root, 'www');
 
-await access(source, constants.R_OK);
+try {
+  await access(sourceHtml, constants.R_OK);
+} catch {
+  console.error('ERROR: Không tìm thấy Studio_Livestream.html.');
+  process.exit(1);
+}
 
-await rm(web, { recursive: true, force: true });
-await mkdir(web, { recursive: true });
+await rm(webDir, { recursive: true, force: true });
+await mkdir(webDir, { recursive: true });
 
-// Giao diện chính chạy trực tiếp tại www/index.html
-await cp(source, path.join(web, 'index.html'));
+// Tạo trang chính và giữ đường dẫn giao diện gốc.
+await cp(sourceHtml, path.join(webDir, 'index.html'));
+await cp(sourceHtml, path.join(webDir, 'Studio_Livestream.html'));
 
-// Sao chép tài nguyên cần thiết
+// Sao chép tài nguyên ứng dụng.
 for (const name of [
   'manifest.json',
   'sw.js',
@@ -31,13 +37,15 @@ for (const name of [
 
   try {
     await access(from, constants.R_OK);
-    await cp(from, path.join(web, name), {
+    await cp(from, path.join(webDir, name), {
       recursive: true,
       force: true
     });
   } catch (error) {
     if (error.code !== 'ENOENT') throw error;
+    console.warn(`WARNING: Không tìm thấy ${name}; bỏ qua.`);
   }
 }
 
-console.log('Live Studio is ready at www/index.html');
+console.log('SUCCESS: Đã chuẩn bị www/index.html');
+console.log('SUCCESS: Đã chuẩn bị www/Studio_Livestream.html');
