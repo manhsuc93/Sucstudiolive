@@ -1,7 +1,7 @@
 
 workflows:
   live-studio-ios-unsigned:
-    name: Live Studio V16.1 - Unsigned IPA
+    name: Live Studio V16.1 - Unsigned IPA Download
     max_build_duration: 60
     instance_type: mac_mini_m2
 
@@ -13,22 +13,28 @@ workflows:
     scripts:
       - name: Install dependencies and prepare web files
         script: |
+          set -e
           npm install
           npm run web:sync
 
       - name: Generate Capacitor iOS project
         script: |
+          set -e
           npx cap add ios
           npx cap sync ios
 
       - name: Configure camera and microphone permissions
         script: |
+          set -e
           PLIST="ios/App/App/Info.plist"
+
           /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string Live Studio cần camera để phát hình ảnh trực tiếp." "$PLIST" || /usr/libexec/PlistBuddy -c "Set :NSCameraUsageDescription Live Studio cần camera để phát hình ảnh trực tiếp." "$PLIST"
+
           /usr/libexec/PlistBuddy -c "Add :NSMicrophoneUsageDescription string Live Studio cần micro để phát âm thanh trực tiếp." "$PLIST" || /usr/libexec/PlistBuddy -c "Set :NSMicrophoneUsageDescription Live Studio cần micro để phát âm thanh trực tiếp." "$PLIST"
 
       - name: Install CocoaPods
         script: |
+          set -e
           cd ios/App
           pod install
           cd ../..
@@ -46,7 +52,7 @@ workflows:
             CODE_SIGNING_ALLOWED=NO \
             build
 
-      - name: Package unsigned IPA for TrollStore
+      - name: Package unsigned IPA and ZIP download
         script: |
           set -e
 
@@ -66,10 +72,15 @@ workflows:
           cd "$STAGE"
           /usr/bin/zip -qry "$CM_BUILD_DIR/LiveStudio-V16.1-unsigned.ipa" Payload
 
-          echo "IPA PACKAGE CREATED:"
+          cd "$CM_BUILD_DIR"
+          /usr/bin/zip -q LiveStudio-V16.1-download.zip LiveStudio-V16.1-unsigned.ipa
+
+          echo "CREATED FILES:"
           ls -lh "$CM_BUILD_DIR/LiveStudio-V16.1-unsigned.ipa"
+          ls -lh "$CM_BUILD_DIR/LiveStudio-V16.1-download.zip"
 
     artifacts:
       - LiveStudio-V16.1-unsigned.ipa
+      - LiveStudio-V16.1-download.zip
       - build/ios/Build/Products/Release-iphoneos/App.app
       - /tmp/xcodebuild_logs/*.log
