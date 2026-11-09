@@ -49,3 +49,11 @@ for (const name of [
 
 console.log('SUCCESS: Đã chuẩn bị www/index.html');
 console.log('SUCCESS: Đã chuẩn bị www/Studio_Livestream.html');
+
+// Load the bundled Capacitor plugin bridge in the native app's main document.
+const indexPath = path.join(webDir, 'index.html');
+let indexHtml = await (await import('node:fs/promises')).readFile(indexPath, 'utf8');
+if (!indexHtml.includes('native-bridge.js')) {
+  indexHtml = indexHtml.replace('</body>', '  <script src="./native-bridge.js"></script>\n</body>');
+  await (await import('node:fs/promises')).writeFile(indexPath, indexHtml, 'utf8');
+}
