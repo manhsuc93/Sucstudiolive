@@ -1,0 +1,20 @@
+apply plugin: 'com.android.library'
+apply plugin: 'org.jetbrains.kotlin.android'
+
+android {
+    namespace 'vn.livestudio.rtmp'
+    compileSdk 35
+    defaultConfig { minSdk 23 }
+}
+
+repositories {
+    google()
+    mavenCentral()
+    maven { url 'https://jitpack.io' }
+}
+
+dependencies {
+    implementation project(':capacitor-android')
+    implementation 'com.github.HaishinKit.HaishinKit~kt:haishinkit:0.14.2'
+    implementation 'com.github.HaishinKit.HaishinKit~kt:rtmp:0.14.2'
+}
