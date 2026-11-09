@@ -329,143 +329,101 @@ class RtmpPublisherPlugin : Plugin(), IEventListener {
     // ---------------------------------------------------------
     // RTMP EVENTS
     // ---------------------------------------------------------
+override fun handleEvent(event: Event) {
+    val payload = try {
+        EventUtils.toMap(event)
+    } catch (_: Exception) {
+        emptyMap<String, Any>()
+    }
 
-    override fun handleEvent(event: Event) {
+    val code = payload["code"]?.toString().orEmpty()
+    val eventType = event.type // Phân biệt loại event (RTMP_STATUS hay IO_ERROR)
 
-        val payload = try {
-            EventUtils.toMap(event)
-        } catch (_: Exception) {
-            emptyMap<String, Any>()
+    main.post {
+        if (eventType == Event.IO_ERROR || code.contains("Closed", true) || code.contains("Failed", true)) {
+            // Xử lý khi mất kết nối hoặc lỗi IO
+            val pending = synchronized(stateLock) { pendingStart }
+            if (pending != null) {
+                fail(pending, "Không thể kết nối đến máy chủ RTMP: $code", "RTMP_CONNECTION_FAILED")
+            } else {
+                val status = JSObject().apply {
+                    put("state", "disconnected")
+                    put("code", code)
+                    put("message", "Kết nối RTMP đã bị gián đoạn.")
+                }
+                notifyListeners("rtmpStatus", status)
+                cleanup(false)
+            }
+            return@post
         }
 
-        val code = payload["code"]
-            ?.toString()
-            .orEmpty()
-
-        main.post {
-
-            when {
-
-                // RTMP connection succeeded.
-                code == RtmpConnection.Code.CONNECT_SUCCESS.rawValue -> {
-
-                    val key = streamKey
-
-                    if (key.isNullOrBlank()) {
-
-                        pendingStart?.let {
-                            fail(
-                                it,
-                                "Không tìm thấy Stream Key.",
-                                "MISSING_STREAM_KEY"
-                            )
-                        }
-
-                    } else {
-
-                        try {
-                            stream?.publish(key)
-
-                            Log.i(
-                                TAG,
-                                "RTMP connected. Publishing stream."
-                            )
-
-                        } catch (e: Exception) {
-
-                            pendingStart?.let {
-                                fail(
-                                    it,
-                                    e.message ?: "Không thể bắt đầu publish.",
-                                    "RTMP_PUBLISH_FAILED"
-                                )
-                            }
-                        }
+        when {
+            // RTMP connection succeeded.
+            code == RtmpConnection.Code.CONNECT_SUCCESS.rawValue -> {
+                val key = streamKey
+                if (key.isNullOrBlank()) {
+                    pendingStart?.let { fail(it, "Không tìm thấy Stream Key.", "MISSING_STREAM_KEY") }
+                } else {
+                    try {
+                        stream?.publish(key)
+                        Log.i(TAG, "RTMP connected. Publishing stream.")
+                    } catch (e: Exception) {
+                        pendingStart?.let { fail(it, e.message ?: "Không thể bắt đầu publish.", "RTMP_PUBLISH_FAILED") }
                     }
                 }
+            }
 
-                // Server accepted publishing.
-                code.contains(
-                    "NetStream.Publish.Start",
-                    ignoreCase = true
-                ) -> {
+            // Server accepted publishing.
+            code.contains("NetStream.Publish.Start", ignoreCase = true) -> {
+                val call = synchronized(stateLock) {
+                    val current = pendingStart
+                    pendingStart = null
+                    starting = false
+                    publishing = true
+                    current
+                }
 
-                    val call = synchronized(stateLock) {
-                        val current = pendingStart
-                        pendingStart = null
-                        starting = false
-                        publishing = true
-                        current
+                call?.let {
+                    val result = JSObject().apply {
+                        put("state", "live")
+                        put("codec", activeCodec)
+                        put("videoCodec", activeCodec)
+                        put("audioCodec", "aac")
+                        put("protocol", "rtmp")
+                        put("message", "Máy chủ đã chấp nhận luồng phát.")
                     }
+                    it.resolve(result)
+                }
 
-                    call?.let {
+                val status = JSObject().apply {
+                    put("state", "live")
+                    put("codec", activeCodec)
+                }
+                notifyListeners("rtmpStatus", status)
+                Log.i(TAG, "RTMP publishing started.")
+            }
 
-                        val result = JSObject()
-
-                        result.put("state", "live")
-                        result.put("codec", activeCodec)
-                        result.put("videoCodec", activeCodec)
-                        result.put("audioCodec", "aac")
-                        result.put("protocol", "rtmp")
-                        result.put(
-                            "message",
-                            "Máy chủ đã chấp nhận luồng phát."
-                        )
-
-                        it.resolve(result)
+            // Server rejected or closed publishing.
+            code.contains("Rejected", true) ||
+            code.contains("BadName", true) ||
+            code.contains("Publish.BadName", true) -> {
+                val pending = synchronized(stateLock) { pendingStart }
+                if (pending != null) {
+                    fail(pending, "Máy chủ RTMP từ chối phiên phát: $code", "RTMP_PUBLISH_REJECTED")
+                } else {
+                    val status = JSObject().apply {
+                        put("state", "disconnected")
+                        put("code", code)
+                        put("message", "Kết nối RTMP đã bị đóng.")
                     }
-
-                    val status = JSObject()
-                    status.put("state", "live")
-                    status.put("codec", activeCodec)
-
                     notifyListeners("rtmpStatus", status)
-
-                    Log.i(TAG, "RTMP publishing started.")
-                }
-
-                // Server rejected or closed publishing.
-                code.contains("Failed", true) ||
-                    code.contains("Rejected", true) ||
-                    code.contains("BadName", true) ||
-                    code.contains("Connect.Closed", true) ||
-                    code.contains("Publish.BadName", true) -> {
-
-                    val pending = synchronized(stateLock) {
-                        pendingStart
-                    }
-
-                    if (pending != null) {
-
-                        fail(
-                            pending,
-                            "Máy chủ RTMP từ chối hoặc đóng phiên: $code",
-                            "RTMP_PUBLISH_REJECTED"
-                        )
-
-                    } else {
-
-                        val status = JSObject()
-
-                        status.put("state", "disconnected")
-                        status.put("code", code)
-                        status.put(
-                            "message",
-                            "Kết nối RTMP đã bị đóng."
-                        )
-
-                        notifyListeners("rtmpStatus", status)
-
-                        cleanup(false)
-                    }
+                    cleanup(false)
                 }
             }
         }
     }
+}
 
-    // ---------------------------------------------------------
-    // STOP STREAM
-    // ---------------------------------------------------------
 
     @PluginMethod
     fun stop(call: PluginCall) {
