@@ -21,7 +21,9 @@ workflows:
         script: |
           set -euo pipefail
           npm run web:sync
+          npm run verify
           test -s www/index.html
+          test -s www/native-bridge.js
       - name: Generate Android project and sync plugins
         script: |
           set -euo pipefail
@@ -62,7 +64,9 @@ workflows:
         script: |
           set -euo pipefail
           npm run web:sync
+          npm run verify
           test -s www/index.html
+          test -s www/native-bridge.js
       - name: Generate iOS project and sync plugins
         script: |
           set -euo pipefail

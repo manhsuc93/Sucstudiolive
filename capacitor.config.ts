@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'vn.livestudio.mobile',
-  appName: 'Live Studio',
+  appName: 'Sucstudiolive',
   webDir: 'www',
   ios: {
     contentInset: 'automatic',

@@ -1,26 +1,33 @@
-# Trạng thái chuyển Sucstudiolive sang RTMP trực tiếp
+# Sucstudiolive — trạng thái native RTMP
 
-## Đã có trong gói này
-- Giao diện RTMP URL + Stream Key.
-- Bỏ luồng WHIP và máy chủ relay khỏi gói chuyển tiếp.
-- JavaScript gọi `Capacitor.Plugins.RtmpPublisher.start()` / `stop()` theo hợp đồng native.
-- Gửi cấu hình H.264/AAC, camera trước/sau và trạng thái overlay (banner, ticker, scoreboard, logo) sang plugin.
-- Không dùng trạng thái camera/micro WebView để giả định rằng native capture đã sẵn sàng.
-- Đặc tả API, quyền truy cập, compositor và checklist kiểm thử ở `native/README-RTMP-PLUGIN-VI.md`.
+## Đã viết trong source
+- Capacitor plugin package local `@sucstudiolive/rtmp-publisher`.
+- JavaScript bridge được bundle vào `www/native-bridge.js`; app HTML gọi plugin đã đăng ký thay vì chỉ dựa vào `Capacitor.Plugins`.
+- Android: HaishinKit.kt 0.14.2; CameraSource + AudioRecordSource; RTMP/RTMPS; H.264 video + AAC audio; đợi status `NetStream.Publish.Start` mới báo LIVE.
+- iOS: HaishinKit.swift 1.9.1; AVFoundation camera/microphone; VideoToolbox hardware encoder; H.264/AAC; tùy chọn HEVC/H.265 nếu máy có hardware encoder và server nhận Enhanced RTMP; đợi status publish.
+- Logo, banner, ticker và scoreboard được vẽ thành bitmap native trong plugin và đưa vào screen compositor trước khi stream encode; `updateOverlay()` cập nhật trong lúc live.
+- UI ngừng camera/micro WebView trước khi native camera/micro mở để tránh chiếm thiết bị hai lần.
+- Có sự kiện `rtmpStatus` để UI nhận biết server đóng kết nối.
 
-## Chưa hoàn thành
-- Chưa có implementation Capacitor plugin Android/iOS.
-- Chưa thêm dự án native `android/` hoặc `ios/`.
-- Chưa có native camera preview, encoder, RTMP socket hoặc native overlay compositor.
-- Chưa build APK/IPA và chưa kiểm thử RTMP trên thiết bị thật.
+## Giới hạn được chủ động bật/tắt
+- Android có cấu hình HEVC Main nếu thiết bị có encoder HEVC phần cứng; máy chủ nhận vẫn phải hỗ trợ Enhanced RTMP/HEVC. Nếu không đủ khả năng phần cứng, plugin từ chối H.265.
+- iOS HEVC chỉ được chọn nếu VideoToolbox báo có mã hóa HEVC phần cứng; máy chủ đích vẫn phải hỗ trợ Enhanced RTMP/HEVC.
+- Preview camera native chưa được gắn vào vùng preview của WebView. Khi bắt đầu phát, preview web được dừng để nhường camera cho native publisher; luồng phát vẫn lấy hình từ camera native.
+- Không có chia sẻ màn hình hoặc nhạc nền theo yêu cầu trước đó.
 
-**Vì vậy gói này chưa thể phát RTMP trực tiếp.** Trên web/PWA, nút phát sẽ báo thiếu plugin thay vì giả lập trạng thái live.
+## Chưa được xác nhận
+- Chưa chạy Android Gradle build hoặc Xcode/CocoaPods build trong môi trường sửa mã.
+- Chưa kiểm thử thiết bị thật, RTMP/RTMPS tới YouTube/Facebook/custom ingest, reconnect, đổi camera, nhiệt độ hoặc livestream dài.
+- Cần xem kết quả Codemagic CI; nếu có lỗi compile do khác biệt API thư viện, cần sửa theo log CI.
+- Đây là bản phát triển có mã nguồn native và pipeline thực, chưa được xác nhận production-ready.
 
-## Hướng native
-Dùng HaishinKit.kt cho Android và HaishinKit.swift cho iOS. Kiểm tra phiên bản HaishinKit.swift tương thích Xcode trước khi khóa dependency; upstream ghi 2.1.x cần Xcode 16.4+, còn 2.2.x/2.3.x cần Xcode 26+.
+## Build
+Từ thư mục dự án:
+1. `npm install`
+2. `npm run web:sync` (đồng bộ HTML, build plugin TS và bundle native bridge)
+3. `npx cap add android` / `npx cap add ios` nếu thư mục nền tảng chưa tồn tại
+4. `npx cap sync android` hoặc `npx cap sync ios`
+5. Build Android bằng `cd android && ./gradlew assembleDebug`
+6. Build iOS bằng Xcode/Codemagic; cần Apple signing để cài lên iPhone.
 
-## Bổ sung ở bước tiếp theo
-- Đã thêm bộ khung Capacitor plugin cho Android (Java) và iOS (Swift) trong `native/rtmp-publisher/`.
-- Plugin shell kiểm tra định dạng URL/Stream Key và trả lỗi rõ ràng `RTMP_ENGINE_NOT_LINKED`; không giả lập trạng thái live.
-- `stop()` an toàn dạng no-op; `updateOverlay()` báo chưa có compositor.
-- Chưa thêm HaishinKit runtime, chưa có camera capture/encoder/socket RTMP thực tế, chưa thể build APK/IPA.
+Không đưa Stream Key, mật khẩu, signing certificate hay keystore vào GitHub.

@@ -364,6 +364,12 @@
                         <input id="rtmpUrl" type="url" inputmode="url" autocomplete="url" placeholder="rtmps://a.rtmp.youtube.com/live2" class="w-full bg-slate-900 border border-studio-border rounded-lg p-2.5 text-slate-200 font-mono text-[11px]">
                         <label class="text-slate-400 block" for="rtmpKey">Stream Key</label>
                         <input id="rtmpKey" type="password" autocomplete="off" placeholder="Dán khóa phát trực tiếp" class="w-full bg-slate-900 border border-studio-border rounded-lg p-2.5 text-slate-200">
+                        <label class="text-slate-400 block" for="videoCodec">Bộ mã hóa video</label>
+                        <select id="videoCodec" class="w-full bg-slate-900 border border-studio-border rounded-lg p-2.5 text-slate-200">
+                            <option value="h264" selected>H.264 / AVC · tương thích rộng</option>
+                            <option value="hevc">H.265 / HEVC · cần máy chủ hỗ trợ Enhanced RTMP</option>
+                        </select>
+                        <p class="text-[10px] text-slate-400">H.264 được khuyên dùng cho YouTube/Facebook. Chỉ chọn H.265 khi máy chủ nhận hỗ trợ HEVC qua Enhanced RTMP.</p>
                         <label class="text-slate-400 block" for="streamQuality">Chất lượng phát</label>
                         <select id="streamQuality" onchange="applyStreamQuality()" class="w-full bg-slate-900 border border-studio-border rounded-lg p-2.5 text-slate-200">
                             <option value="4500" selected>1080p · 30 FPS · 4.5 Mbps</option>
@@ -371,7 +377,7 @@
                         </select>
                     </div>
                     <div class="rounded-xl border border-amber-500/30 bg-amber-950/20 p-3 text-[11px] leading-relaxed text-amber-100">
-                        Lưu ý kỹ thuật: trình duyệt/PWA không thể tự phát RTMP. Phát RTMP trực tiếp cần module native Android/iOS dùng bộ mã hóa H.264/AAC và RTMP publisher. Bản HTML này đã bỏ WHIP và chuẩn bị giao diện/cầu nối native; cần tích hợp module native tương ứng để nút phát hoạt động thật. Không nhập Stream Key trên thiết bị công cộng.
+                        Lưu ý kỹ thuật: trình duyệt/PWA không thể tự phát RTMP. Phát RTMP trực tiếp cần module native Android/iOS dùng bộ mã hóa H.264/AAC và RTMP publisher. Bản native đã tích hợp pipeline RTMP. Bạn phải chạy ứng dụng đã build bằng Capacitor trên Android/iPhone; mở riêng trang web hoặc PWA không thể phát RTMP. Không nhập Stream Key trên thiết bị công cộng.
                     </div>
                     <button type="button" onclick="testRtmpSettings()" class="w-full bg-slate-800 border border-slate-600 rounded-lg py-2.5 text-xs font-semibold text-slate-100">Kiểm tra cấu hình RTMP</button>
                 </div>
@@ -619,12 +625,12 @@
       function stopMic(){isMicOn=false;if(micMeterFrame)cancelAnimationFrame(micMeterFrame);micMeterFrame=0;if(micStream)micStream.getTracks().forEach(t=>t.stop());micStream=null;micSource=null;micGain=null;micAnalyser=null;outputAudio=null;if(audioContext){audioContext.close().catch(()=>{});audioContext=null;}document.getElementById('toggleMicBtn').classList.remove('bg-emerald-600','text-white');document.getElementById('micBtnText').textContent='Bật Mic';document.getElementById('micMeter').style.width='0%';}
       function monitorMic(){if(!isMicOn||!micAnalyser)return;const data=new Uint8Array(micAnalyser.frequencyBinCount);micAnalyser.getByteTimeDomainData(data);let sum=0;for(const v of data){const n=(v-128)/128;sum+=n*n;}const rms=Math.sqrt(sum/data.length);document.getElementById('micMeter').style.width=Math.min(100,Math.round(rms*260))+'%';micMeterFrame=requestAnimationFrame(monitorMic);}
       function updateAudioLevels(){const mic=Number(document.getElementById('micVolume')?.value??100);const label=document.getElementById('micVolVal');if(label)label.textContent=mic+'%';if(micGain&&audioContext)micGain.gain.setTargetAtTime(mic/100,audioContext.currentTime,.025);}
-      function handleLogoUpload(e){const file=e.target.files?.[0];if(!file)return;if(!file.type.startsWith('image/')){setStatus('Vui lòng chọn tệp ảnh.');return;}if(file.size>5*1024*1024){setStatus('Logo tối đa 5 MB.');e.target.value='';return;}const url=URL.createObjectURL(file);const img=new Image();img.onload=()=>{if(logoImage?.src?.startsWith('blob:'))URL.revokeObjectURL(logoImage.src);logoImage=img;logoImage.src=url;setStatus('Đã tải logo lên studio.');};img.onerror=()=>{URL.revokeObjectURL(url);setStatus('Không đọc được ảnh logo.');};img.src=url;}
+      function handleLogoUpload(e){const file=e.target.files?.[0];if(!file)return;if(!file.type.startsWith('image/')){setStatus('Vui lòng chọn tệp ảnh.');return;}if(file.size>5*1024*1024){setStatus('Logo tối đa 5 MB.');e.target.value='';return;}const url=URL.createObjectURL(file);const img=new Image();img.onload=()=>{if(logoImage?.src?.startsWith('blob:'))URL.revokeObjectURL(logoImage.src);logoImage=img;logoImage.src=url;syncNativeOverlay();setStatus('Đã tải logo lên studio.');};img.onerror=()=>{URL.revokeObjectURL(url);setStatus('Không đọc được ảnh logo.');};img.src=url;}
       function renderStudioCanvas(){ /* The compositor is continuously rendered at a capped frame rate. */ }
-      function toggleBanner(){showBanner=!showBanner;const b=document.getElementById('toggleBannerBtn');b.textContent=showBanner?'Ẩn Banner':'Hiện Banner';}
-      function toggleTicker(){showTicker=!showTicker;document.getElementById('toggleTickerBtn').textContent=showTicker?'Tắt Chữ Chạy':'Bật Chữ Chạy';}
-      function toggleScoreboard(){showScoreboard=!showScoreboard;document.getElementById('toggleScoreboardBtn').textContent=showScoreboard?'Ẩn Bảng Điểm':'Hiện Bảng Điểm';}
-      function changeScore(team,delta){if(team==='A'){scoreA=Math.max(0,scoreA+delta);document.getElementById('scoreAVal').textContent=scoreA;}else{scoreB=Math.max(0,scoreB+delta);document.getElementById('scoreBVal').textContent=scoreB;}}
+      function toggleBanner(){showBanner=!showBanner;const b=document.getElementById('toggleBannerBtn');b.textContent=showBanner?'Ẩn Banner':'Hiện Banner';syncNativeOverlay();}
+      function toggleTicker(){showTicker=!showTicker;document.getElementById('toggleTickerBtn').textContent=showTicker?'Tắt Chữ Chạy':'Bật Chữ Chạy';syncNativeOverlay();}
+      function toggleScoreboard(){showScoreboard=!showScoreboard;document.getElementById('toggleScoreboardBtn').textContent=showScoreboard?'Ẩn Bảng Điểm':'Hiện Bảng Điểm';syncNativeOverlay();}
+      function changeScore(team,delta){if(team==='A'){scoreA=Math.max(0,scoreA+delta);document.getElementById('scoreAVal').textContent=scoreA;}else{scoreB=Math.max(0,scoreB+delta);document.getElementById('scoreBVal').textContent=scoreB;}syncNativeOverlay();}
       function drawCanvasLoop(now){
         requestAnimationFrame(drawCanvasLoop);
         if(now-lastDraw<33)return; lastDraw=now;
@@ -663,6 +669,29 @@
         catch(e){setStatus('Cấu hình RTMP chưa hợp lệ: '+e.message);}
       }
       async function toggleStream(){if(isLive){await stopLiveStream();return;}await startLiveStream();}
+      async function configureNativeCodecOptions(){
+        const plugin=window.SucstudioliveRtmpPublisher||window.Capacitor?.Plugins?.RtmpPublisher;
+        const hevcOption=document.querySelector('#videoCodec option[value="hevc"]');
+        if(!hevcOption) return;
+        if(!plugin?.getCapabilities){hevcOption.disabled=true;hevcOption.textContent='H.265 / HEVC · chỉ dùng trên thiết bị native tương thích';return;}
+        try{
+          const caps=await plugin.getCapabilities();
+          if(!caps.hevc){hevcOption.disabled=true;hevcOption.textContent='H.265 / HEVC · chưa hỗ trợ trên nền tảng này';}
+        }catch(_){hevcOption.disabled=true;}
+      }
+      document.addEventListener('DOMContentLoaded', configureNativeCodecOptions);
+      function buildNativeOverlaySnapshot(){
+        return {
+          banner:{enabled:showBanner,title:document.getElementById('overlayTitle')?.value||'LIVESTREAM TRỰC TIẾP',subtitle:document.getElementById('overlaySubtitle')?.value||'',backgroundColor:document.getElementById('bannerBgColor')?.value||'#2563eb'},
+          ticker:{enabled:showTicker,text:document.getElementById('tickerText')?.value||''},
+          scoreboard:{enabled:showScoreboard,teamA:document.getElementById('teamAName')?.value||'ĐỘI A',teamB:document.getElementById('teamBName')?.value||'ĐỘI B',scoreA,scoreB},
+          logo:logoImage?{dataUrl:(()=>{const c=document.createElement('canvas');c.width=logoImage.naturalWidth||logoImage.width;c.height=logoImage.naturalHeight||logoImage.height;c.getContext('2d').drawImage(logoImage,0,0);return c.toDataURL('image/png');})(),position:document.getElementById('logoPosition')?.value||'top-right'}:null
+        };
+      }
+      function syncNativeOverlay(){
+        if(!isLive || !rtmpPublisher?.updateOverlay) return;
+        rtmpPublisher.updateOverlay(buildNativeOverlaySnapshot()).catch(error=>console.warn('Native overlay update:',error));
+      }
       async function startLiveStream(){
         const url=document.getElementById('rtmpUrl')?.value.trim()||'';
         const key=document.getElementById('rtmpKey')?.value.trim()||'';
@@ -672,15 +701,21 @@
         catch(e){setStatus('Thông tin RTMP chưa hợp lệ: '+e.message);switchTab('settings');return;}
         // Capacitor native plugin must own camera/mic capture + H.264/AAC encoding + RTMP socket.
         // A browser MediaStream cannot be passed through the Capacitor bridge as a native stream.
-        const plugin=window.Capacitor?.Plugins?.RtmpPublisher;
+        const plugin=window.SucstudioliveRtmpPublisher||window.Capacitor?.Plugins?.RtmpPublisher;
         if(!plugin?.start){setStatus('Chưa có module native RTMP Publisher. Bản web/PWA không thể phát RTMP trực tiếp; cần cài plugin native Android/iOS trước khi phát.');return;}
-        setLiveUi('connecting','Đang khởi động bộ phát RTMP native…');
+        // Release WebView camera/microphone before the native capture pipeline opens them.
+        try { if (typeof stopCamera === 'function') stopCamera(); } catch (_) {}
+        try { if (typeof stopMic === 'function') stopMic(); } catch (_) {}
+        setLiveUi('connecting','Đang khởi động camera, micro và bộ phát RTMP native…');
         try{
           const quality=Number(document.getElementById('streamQuality')?.value||4500);
+          const codec=document.getElementById('videoCodec')?.value||'h264';
           const portrait=canvasRatio==='9:16';
-          const overlay={banner:{enabled:showBanner,title:document.getElementById('overlayTitle')?.value||'LIVESTREAM TRỰC TIẾP',subtitle:document.getElementById('overlaySubtitle')?.value||'',backgroundColor:document.getElementById('bannerBgColor')?.value||'#2563eb'},ticker:{enabled:showTicker,text:document.getElementById('tickerText')?.value||''},scoreboard:{enabled:showScoreboard,teamA:document.getElementById('teamAName')?.value||'ĐỘI A',teamB:document.getElementById('teamBName')?.value||'ĐỘI B',scoreA,scoreB},logo:logoImage?{dataUrl:(()=>{const c=document.createElement('canvas');c.width=logoImage.naturalWidth||logoImage.width;c.height=logoImage.naturalHeight||logoImage.height;c.getContext('2d').drawImage(logoImage,0,0);return c.toDataURL('image/png');})(),position:document.getElementById('logoPosition')?.value||'top-right'}:null};
-          const result=await plugin.start({url,key,video:{codec:'h264',width:quality===2500?(portrait?720:1280):(portrait?1080:1920),height:quality===2500?(portrait?1280:720):(portrait?1920:1080),fps:30,bitrate:quality*1000},audio:{codec:'aac',bitrate:128000,sampleRate:44100,channels:2},cameraFacing:window.preferredCameraFacing||'user',overlay,requireNativeCapture:true});
-          rtmpPublisher=plugin;isLive=true;streamStartTime=Date.now();timerInterval=setInterval(updateTimer,1000);setLiveUi('live',result?.message||'Native publisher xác nhận đã bắt đầu phát RTMP.');
+          const overlay=buildNativeOverlaySnapshot();
+          const result=await plugin.start({url,key,video:{codec,width:quality===2500?(portrait?720:1280):(portrait?1080:1920),height:quality===2500?(portrait?1280:720):(portrait?1920:1080),fps:30,bitrate:quality*1000},audio:{codec:'aac',bitrate:128000,sampleRate:44100,channels:2},cameraFacing:window.preferredCameraFacing||'user',overlay,requireNativeCapture:true});
+          rtmpPublisher=plugin;isLive=true;streamStartTime=Date.now();timerInterval=setInterval(updateTimer,1000);
+          if(plugin.addListener){try{await plugin.addListener('rtmpStatus',event=>{if(event?.state==='disconnected'){stopLiveStream(false);setLiveUi('idle',event.message||'Kết nối RTMP đã bị ngắt.');}});}catch(_){}}
+          setLiveUi('live',result?.message||'Native publisher xác nhận đã bắt đầu phát RTMP.');
         }catch(err){rtmpPublisher=null;isLive=false;setLiveUi('idle','Không thể bắt đầu RTMP: '+(err.message||err));}
       }
       async function stopLiveStream(update=true){
@@ -690,7 +725,7 @@
       }
       function updateTimer(){if(!streamStartTime)return;const elapsed=Math.floor((Date.now()-streamStartTime)/1000);const h=String(Math.floor(elapsed/3600)).padStart(2,'0'),m=String(Math.floor(elapsed%3600/60)).padStart(2,'0'),s=String(elapsed%60).padStart(2,'0');document.getElementById('timerText').textContent=`${h}:${m}:${s}`;}
       function switchTab(tabId){const tabs=['overlays','scoreboard','settings'];tabs.forEach(t=>{document.getElementById(`content-${t}`)?.classList.add('hidden');document.getElementById(`tab-${t}`)?.classList.remove('active','text-blue-400');document.getElementById(`tab-${t}`)?.classList.add('text-slate-400');});document.getElementById(`content-${tabId}`)?.classList.remove('hidden');document.getElementById(`tab-${tabId}`)?.classList.add('active');}
-      function clearCanvasOverlays(){showBanner=false;showTicker=false;showScoreboard=false;logoImage=null;}
+      function clearCanvasOverlays(){showBanner=false;showTicker=false;showScoreboard=false;logoImage=null;syncNativeOverlay();}
       // getProgramStream is defined above and captures the final composed program canvas + mixed audio.
       window.addEventListener('pagehide',()=>{if(rtmpPublisher?.stop)rtmpPublisher.stop().catch(()=>{});stopCamera();stopMic();if(timerInterval)clearInterval(timerInterval);});
     </script>
@@ -733,6 +768,24 @@
           setStatus('Đang ghi chương trình đã ghép hình và âm thanh. Bản ghi được giữ trong bộ nhớ cho tới khi dừng; nên dừng định kỳ với phiên dài.');
         }catch(err){setStatus('Không thể ghi: '+err.message);btn.disabled=false;btn.textContent='● REC';}
       }
-    </script>
+    
+      // Keep native video overlays synchronized while the RTMP session is live.
+      document.addEventListener('input', async (event) => {
+        if (!isLive || !rtmpPublisher?.updateOverlay) return;
+        const ids=['overlayTitle','overlaySubtitle','bannerBgColor','tickerText','teamAName','teamBName'];
+        if (ids.includes(event.target?.id) || ['overlayTitle','overlaySubtitle','bannerBgColor','tickerText','teamAName','teamBName'].includes(event.target?.id)) {
+          try { await rtmpPublisher.updateOverlay(buildNativeOverlaySnapshot()); }
+          catch (error) { console.warn('Native overlay update:', error); }
+        }
+      });
+      document.addEventListener('change', async (event) => {
+        if (!isLive || !rtmpPublisher?.updateOverlay) return;
+        const ids=['logoPosition'];
+        if (ids.includes(event.target?.id) || event.target?.matches?.('[data-overlay-toggle]')) {
+          try { await rtmpPublisher.updateOverlay(buildNativeOverlaySnapshot()); }
+          catch (error) { console.warn('Native overlay update:', error); }
+        }
+      });
+</script>
 </body>
 </html>

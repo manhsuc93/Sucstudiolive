@@ -4,7 +4,7 @@
   "private": true,
   "description": "Live Studio V16.1 - Capacitor iOS and Android shell",
   "scripts": {
-    "web:sync": "node scripts/sync-web.mjs",
+    "web:sync": "node scripts/sync-web.mjs && npm run plugin:build && esbuild scripts/native-bridge.ts --bundle --format=iife --platform=browser --target=es2020 --outfile=www/native-bridge.js",
     "cap:sync": "npm run web:sync && cap sync",
     "ios:add": "cap add ios",
     "ios:sync": "npm run web:sync && cap sync ios",
@@ -13,7 +13,9 @@
     "android:open": "cap open android",
     "ios:open": "cap open ios",
     "android:build:debug": "npm run android:sync && cd android && ./gradlew assembleDebug",
-    "check:source": "node --check scripts/sync-web.mjs"
+    "check:source": "node --check scripts/sync-web.mjs",
+    "plugin:build": "npm --prefix native/rtmp-publisher run build",
+    "verify": "node scripts/verify-project.mjs"
   },
   "dependencies": {
     "@capacitor/android": "7.4.3",
@@ -23,9 +25,12 @@
     "@capacitor/keyboard": "7.0.3",
     "@capacitor/share": "7.0.2",
     "@capacitor/splash-screen": "7.0.3",
-    "@capacitor/status-bar": "7.0.3"
+    "@capacitor/status-bar": "7.0.3",
+    "@sucstudiolive/rtmp-publisher": "file:./native/rtmp-publisher"
   },
   "devDependencies": {
-    "@capacitor/cli": "7.4.3"
+    "@capacitor/cli": "7.4.3",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.8.3"
   }
 }
