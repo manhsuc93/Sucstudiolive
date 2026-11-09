@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "declaration": true,
+    "module": "ESNext",
+    "target": "ES2017",
+    "moduleResolution": "node",
+    "outDir": "dist/esm",
+    "strict": true,
+    "skipLibCheck": true
+  },
+  "include": [
+    "src/**/*.ts"
+  ]
+}

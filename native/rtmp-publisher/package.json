@@ -1,0 +1,32 @@
+{
+  "name": "@sucstudiolive/rtmp-publisher",
+  "version": "1.0.0",
+  "description": "Capacitor 7 native RTMP publisher for Sucstudiolive",
+  "module": "dist/esm/index.js",
+  "types": "dist/esm/index.d.ts",
+  "files": [
+    "dist/",
+    "src/",
+    "android/",
+    "ios/",
+    "RtmpPublisher.podspec",
+    "tsconfig.json"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@capacitor/core": "^7.4.3"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3"
+  },
+  "capacitor": {
+    "ios": {
+      "src": "ios"
+    },
+    "android": {
+      "src": "android"
+    }
+  }
+}
