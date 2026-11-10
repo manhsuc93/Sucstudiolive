@@ -21,12 +21,11 @@ import com.getcapacitor.annotation.Permission
 import com.haishinkit.codec.VideoCodecProfileLevel
 import com.haishinkit.event.Event
 import com.haishinkit.event.IEventListener
-import com.haishinkit.event.EventUtils
 import com.haishinkit.media.source.AudioRecordSource
 import com.haishinkit.media.source.CameraSource
 import com.haishinkit.rtmp.RtmpConnection
 import com.haishinkit.rtmp.RtmpStream
-import com.haishinkit.screen.ImageScreenObject as HkImage
+import com.haishinkit.screen.Image as HkImage
 
 @CapacitorPlugin(
     name = "RtmpPublisher",
@@ -250,7 +249,7 @@ class RtmpPublisherPlugin : Plugin(), IEventListener {
             val conn = RtmpConnection()
 
             // Create publishing stream.
-            val rtmp = RtmpStream(conn)
+            val rtmp = RtmpStream(context, conn)
 
             // Create native camera source.
             val cam = CameraSource(context).apply {
