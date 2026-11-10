@@ -25,36 +25,46 @@ workflows:
           test -s www/index.html
           test -s www/native-bridge.js
       
+  
       - name: Generate Android project and sync plugins
         script: |
           set -euo pipefail
+
           npx cap add android
           npx cap sync android
 
           python3 - <<'PY'
           from pathlib import Path
 
-          p = Path("android/settings.gradle")
+          p = Path("android/build.gradle")
+          if not p.exists():
+              raise SystemExit("Cannot find android/build.gradle")
+
           s = p.read_text()
 
           if "jitpack.io" not in s:
-              marker = "dependencyResolutionManagement"
+              marker = "allprojects {"
               start = s.find(marker)
               if start < 0:
-                  raise SystemExit("Missing dependencyResolutionManagement")
+                  raise SystemExit("Cannot find allprojects block in android/build.gradle")
 
-              pos = s.find("repositories {", start)
-              if pos < 0:
-                  raise SystemExit("Missing repositories block")
+              repo = s.find("repositories {", start)
+              if repo < 0:
+                  raise SystemExit("Cannot find repositories block")
 
-              pos += len("repositories {")
-              s = s[:pos] + '\n        maven { url "https://www.jitpack.io" }' + s[pos:]
+              pos = repo + len("repositories {")
+              s = (
+                  s[:pos]
+                  + '\n        maven { url "https://jitpack.io" }'
+                  + s[pos:]
+              )
               p.write_text(s)
 
-          print("JitPack repository configured")
+          print("JitPack configured in android/build.gradle")
           PY
 
           test -x android/gradlew
+
 
       - name: Build debug APK
         script: |
