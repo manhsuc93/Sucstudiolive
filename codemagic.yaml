@@ -33,6 +33,29 @@ workflows:
           npx cap add android
           npx cap sync android
 
+          # Add an HTTPS Google Maven mirror while retaining Google's official repository.
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          mirror = 'maven { url "https://maven.aliyun.com/repository/google" }'
+          for name in ("android/settings.gradle", "android/build.gradle"):
+              p = Path(name)
+              if not p.exists():
+                  raise SystemExit(f"Cannot find generated Gradle file: {name}")
+              text = p.read_text()
+              if mirror not in text:
+                  text = re.sub(
+                      r"^(\s*)google\(\)\s*$",
+                      lambda m: f"{m.group(1)}{mirror}\n{m.group(1)}google()",
+                      text,
+                      flags=re.MULTILINE
+                  )
+                  p.write_text(text)
+
+          print("Google Maven mirror configured; official google() retained.")
+          PY
+
           python3 - <<'PY'
           from pathlib import Path
 
