@@ -146,13 +146,13 @@ workflows:
         script: |
           set -euo pipefail
           APP_PATH="$CM_BUILD_DIR/build/ios/Build/Products/Release-iphoneos/App.app"
-          STAGE="$CM_BUILD_DIR/ipa-staging"
+          STAGE="$CM_BUILD_DIR/build/ios/ipa-staging"
           test -d "$APP_PATH"
-          mkdir -p "$STAGE/Payload"
+          mkdir -p "$CM_BUILD_DIR/build/ios" "$STAGE/Payload"
           ditto "$APP_PATH" "$STAGE/Payload/App.app"
           cd "$STAGE"
-          zip -qry "$CM_BUILD_DIR/Sucstudiolive-iOS-unsigned.ipa" Payload
+          zip -qry "$CM_BUILD_DIR/build/ios/Sucstudiolive-iOS-unsigned.ipa" Payload
     artifacts:
-      - Sucstudiolive-iOS-unsigned.ipa
+      - build/ios/Sucstudiolive-iOS-unsigned.ipa
       - build/ios/Build/Products/Release-iphoneos/App.app
       - /tmp/xcodebuild_logs/*.log
