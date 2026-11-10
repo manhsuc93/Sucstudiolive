@@ -33,6 +33,6 @@ repositories {
 dependencies {
     implementation project(':capacitor-android')
 
-    implementation 'com.github.HaishinKit.HaishinKit~kt:haishinkit:0.14.2'
-    implementation 'com.github.HaishinKit.HaishinKit~kt:rtmp:0.14.2'
+    implementation 'com.github.HaishinKit.HaishinKit~kt:haishinkit:0.15.0'
+    implementation 'com.github.HaishinKit.HaishinKit~kt:rtmp:0.15.0'
 }
