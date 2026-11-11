@@ -1,0 +1,574 @@
+package com.haishinkit.rtmp
+
+import android.content.Context
+import android.graphics.Rect
+import android.media.MediaCodec
+import android.media.MediaFormat
+import android.util.Log
+import com.haishinkit.codec.Codec
+import com.haishinkit.media.MediaType
+import com.haishinkit.media.source.VideoCodecSource
+import com.haishinkit.rtmp.event.Event
+import com.haishinkit.rtmp.event.EventDispatcher
+import com.haishinkit.rtmp.event.EventUtils
+import com.haishinkit.rtmp.event.IEventDispatcher
+import com.haishinkit.rtmp.event.IEventListener
+import com.haishinkit.rtmp.iso.DecoderConfigurationRecord
+import com.haishinkit.rtmp.message.RtmpCommandMessage
+import com.haishinkit.rtmp.message.RtmpDataMessage
+import com.haishinkit.rtmp.message.RtmpMessage
+import com.haishinkit.rtmp.message.RtmpMessageFactory
+import com.haishinkit.stream.Stream
+import java.nio.ByteBuffer
+import java.util.concurrent.atomic.AtomicInteger
+
+/**
+ * Publishes or plays a one-way media stream over an [RtmpConnection].
+ *
+ * For publishing, register this stream as an output of a media mixer. For playback, register
+ * an output view on this stream. Listen for `Event.RTMP_STATUS` to observe stream status changes.
+ *
+ * @param context The Android context used for codecs and rendering.
+ * @param connection The connection that owns this stream.
+ */
+@Suppress("UNUSED", "MemberVisibilityCanBePrivate")
+class RtmpStream(
+    context: Context,
+    internal var connection: RtmpConnection,
+) : Stream(context),
+    IEventDispatcher {
+    /**
+     * Information about the publishing resource.
+     *
+     * @property resourceName The name most recently passed to [publish], or `null` before publishing.
+     */
+    data class Info(
+        var resourceName: String? = null,
+    )
+
+    /**
+     * The server-side publishing mode sent with the publish command.
+     *
+     * Support for recording and append modes depends on the server.
+     *
+     * @property rawValue The mode string sent to the server.
+     */
+    enum class HowToPublish(
+        val rawValue: String,
+    ) {
+        RECORD("record"),
+        APPEND("append"),
+        APPEND_WITH_GAP("appendWithGap"),
+        LIVE("live"),
+    }
+
+    /**
+     * RTMP stream status codes included in status event data.
+     *
+     * @property rawValue The protocol status code string.
+     */
+    @Suppress("UNUSED")
+    enum class Code(
+        val rawValue: String,
+        private val level: String,
+    ) {
+        BUFFER_EMPTY("NetStream.Buffer.Empty", "status"),
+        BUFFER_FLUSH("NetStream.Buffer.Flush", "status"),
+        BUFFER_FULL("NetStream.Buffer.Full", "status"),
+        CONNECT_CLOSED("NetStream.Connect.Closed", "status"),
+        CONNECT_FAILED("NetStream.Connect.Failed", "error"),
+        CONNECT_REJECTED("NetStream.Connect.Rejected", "error"),
+        CONNECT_SUCCESS("NetStream.Connect.Success", "status"),
+        DRM_UPDATE_NEEDED("NetStream.DRM.UpdateNeeded", "status"),
+        FAILED("NetStream.Failed", "error"),
+        MULTI_STREAM_RESET("NetStream.MulticastStream.Reset", "status"),
+        PAUSE_NOTIFY("NetStream.Pause.Notify", "status"),
+        PLAY_FAILED("NetStream.Play.Failed", "error"),
+        PLAY_FILE_STRUCTURE_INVALID("NetStream.Play.FileStructureInvalid", "error"),
+        PLAY_INSUFFICIENT_BW("NetStream.Play.InsufficientBW", "status"),
+        PLAY_NO_SUPPORTED_TRACK_FOUND("NetStream.Play.NoSupportedTrackFound", "status"),
+        PLAY_RESET("NetStream.Play.Reset", "status"),
+        PLAY_START("NetStream.Play.Start", "status"),
+        PLAY_STOP("NetStream.Play.Stop", "status"),
+        PLAY_STREAM_NOT_FOUND("NetStream.Play.StreamNotFound", "error"),
+        PLAY_TRANSITION("NetStream.Play.Transition", "status"),
+        PLAY_UNPUBLISH_NOTIFY("NetStream.Play.UnpublishNotify", "status"),
+        PUBLISH_BAD_NAME("NetStream.Publish.BadName", "status"),
+        PUBLISH_IDLE("NetStream.Publish.Idle", "status"),
+        PUBLISH_START("NetStream.Publish.Start", "status"),
+        RECORD_ALREADY_EXISTS("NetStream.Record.AlreadyExists", "status"),
+        RECORD_FAILED("NetStream.Record.Failed", "status"),
+        RECORD_NO_ACCESS("NetStream.Record.NoAccess", "error"),
+        RECORD_START("NetStream.Record.Start", "status"),
+        RECORD_STOP("NetStream.Record.Stop", "status"),
+        RECORD_DISK_QUOTA_EXCEEDED("NetStream.Record.DiskQuotaExceeded", "error"),
+        SECOND_SCREEN_START("NetStream.SecondScreen.Start", "status"),
+        SECOND_SCREEN_STOP("NetStream.SecondScreen.Stop", "status"),
+        SEEK_FAILED("NetStream.Seek.Failed", "error"),
+        SEEK_INVALID_TIME("NetStream.Seek.InvalidTime", "error"),
+        SEEK_NOTIFY("NetStream.Seek.Notify", "status"),
+        STEP_NOTIFY("NetStream.Step.Notify", "status"),
+        UNPAUSE_NOTIFY("NetStream.Unpause.Notify", "status"),
+        UNPUBLISH_SUCCESS("NetStream.Unpublish.Success", "status"),
+        VIDEO_DIMENSION_CHANGE("NetStream.Video.DimensionChange", "status"),
+        ;
+
+        /**
+         * Builds status event data, omitting the description when it is empty.
+         */
+        fun data(description: String): Map<String, Any> {
+            val data = HashMap<String, Any>()
+            data["code"] = rawValue
+            data["level"] = level
+            if (description.isNotEmpty()) {
+                data["description"] = description
+            }
+            return data
+        }
+    }
+
+    /**
+     * Receives periodic stream statistics callbacks.
+     */
+    interface Listener {
+        /**
+         * Called by the connection statistics timer, approximately once per second while connected.
+         *
+         * @param stream The stream whose statistics were updated.
+         * @param connection The connection providing byte counters.
+         */
+        fun onStatics(
+            stream: RtmpStream,
+            connection: RtmpConnection,
+        )
+    }
+
+    internal inner class EventListener(
+        private val stream: RtmpStream,
+    ) : IEventListener {
+        override fun handleEvent(event: Event) {
+            val data = EventUtils.toMap(event)
+            when (data["code"].toString()) {
+                RtmpConnection.Code.CONNECT_SUCCESS.rawValue -> {
+                    connection.createStream(stream)
+                }
+
+                Code.PLAY_START.rawValue -> {
+                    stream.readyState = ReadyState.PLAYING
+                }
+
+                Code.PLAY_UNPUBLISH_NOTIFY.rawValue -> {
+                    stream.readyState = ReadyState.PLAY
+                }
+
+                Code.PUBLISH_START.rawValue -> {
+                    stream.readyState = ReadyState.PUBLISHING
+                }
+
+                else -> {
+                }
+            }
+        }
+    }
+
+    internal enum class ReadyState(
+        val rawValue: Byte,
+    ) {
+        INITIALIZED(0x00),
+        OPEN(0x01),
+        PLAY(0x02),
+        PLAYING(0x03),
+        PUBLISH(0x04),
+        PUBLISHING(0x05),
+        CLOSED(0x06),
+    }
+
+    /**
+     * Information about this stream's publishing resource.
+     */
+    var info: Info = Info()
+        private set
+
+    /**
+     * The statistics listener, or `null` to disable callbacks.
+     */
+    var listener: Listener? = null
+
+    /**
+     * Whether to request video during playback. Changes are sent to the server while playing.
+     */
+    var receiveVideo: Boolean = true
+        set(value) {
+            field = value
+            if (readyState != ReadyState.PLAYING) return
+            val message = RtmpCommandMessage(RtmpObjectEncoding.AMF0)
+            message.streamID = id
+            message.chunkStreamID = RtmpChunk.COMMAND
+            message.commandName = "receiveVideo"
+            message.arguments = listOf(field)
+            connection.doOutput(RtmpChunk.ZERO, message)
+        }
+
+    /**
+     * Whether to request audio during playback. Changes are sent to the server while playing.
+     */
+    var receiveAudio: Boolean = true
+        set(value) {
+            field = value
+            if (readyState != ReadyState.PLAYING) return
+            val message = RtmpCommandMessage(RtmpObjectEncoding.AMF0)
+            message.streamID = id
+            message.chunkStreamID = RtmpChunk.COMMAND
+            message.commandName = "receiveAudio"
+            message.arguments = listOf(field)
+            connection.doOutput(RtmpChunk.ZERO, message)
+        }
+
+    /**
+     * Specifies the stream name used for FMLE-compatible sequences.
+     */
+    var fcPublishName: String? = null
+
+    /**
+     * The number of video frames counted during the most recent statistics interval.
+     */
+    @Volatile
+    var currentFPS: Int = 0
+        private set
+
+    internal var id = 0
+    internal var readyState = ReadyState.INITIALIZED
+        set(value) {
+            Log.d(TAG, "current=$field, change=$value")
+            when (field) {
+                ReadyState.PLAYING -> {
+                    videoTimestamp = DEFAULT_TIMESTAMP
+                    audioTimestamp = DEFAULT_TIMESTAMP
+                    muxer.clear()
+                }
+
+                ReadyState.PUBLISHING -> {
+                    muxer.clear()
+                }
+
+                else -> {
+                }
+            }
+            field = value
+            when (value) {
+                ReadyState.OPEN -> {
+                    currentFPS = 0
+                    frameCount.set(0)
+                    for (message in messages) {
+                        message.streamID = id
+                        if (message is RtmpCommandMessage) {
+                            message.transactionID = ++connection.transactionID
+                            when (message.commandName) {
+                                "play" -> readyState = ReadyState.PLAY
+                                "publish" -> readyState = ReadyState.PUBLISH
+                            }
+                        }
+                        connection.doOutput(RtmpChunk.ZERO, message)
+                    }
+                    messages.clear()
+                }
+
+                ReadyState.PLAY -> {
+                    mode = Codec.MODE_DECODE
+                    startRunning()
+                }
+
+                ReadyState.PUBLISHING -> {
+                    mode = Codec.MODE_ENCODE
+                    startRunning()
+                    send("@setDataFrame", "onMetaData", toMetaData())
+                }
+
+                ReadyState.CLOSED -> {
+                    stopRunning()
+                }
+
+                else -> {
+                }
+            }
+        }
+    internal var muxer = RtmpMuxer(this)
+    internal val messages = ArrayList<RtmpMessage>()
+    internal var frameCount = AtomicInteger(0)
+    internal var messageFactory = RtmpMessageFactory(4)
+    internal var videoTimestamp = DEFAULT_TIMESTAMP
+    internal var audioTimestamp = DEFAULT_TIMESTAMP
+    private val dispatcher: EventDispatcher by lazy {
+        EventDispatcher(this)
+    }
+    private val eventListener = EventListener(this)
+    private var howToPublish = HowToPublish.LIVE
+
+    init {
+        val count = (connection.streams.count() * -1) - 1
+        connection.streams[count] = this
+        connection.addEventListener(Event.RTMP_STATUS, eventListener)
+        if (connection.isConnected) {
+            connection.createStream(this)
+        }
+        addEventListener(Event.RTMP_STATUS, eventListener)
+        audioCodec.listener = muxer
+        videoCodec.listener = muxer
+    }
+
+    /**
+     * Requests publishing to the server. The request is queued until the server stream is created.
+     *
+     * @param name The stream name, or `null` to send a close-stream request while publishing.
+     * @param howToPublish The publishing mode; defaults to [HowToPublish.LIVE].
+     */
+    fun publish(
+        name: String?,
+        howToPublish: HowToPublish = HowToPublish.LIVE,
+    ) {
+        val message = RtmpCommandMessage(connection.objectEncoding)
+        message.transactionID = 0
+        message.commandName = if (name != null) "publish" else "closeStream"
+        message.chunkStreamID = RtmpChunk.AUDIO
+        message.streamID = id
+
+        if (name == null) {
+            when (readyState) {
+                ReadyState.PUBLISHING -> connection.doOutput(RtmpChunk.ZERO, message)
+                else -> {}
+            }
+            return
+        }
+
+        this.howToPublish = howToPublish
+        info.resourceName = name
+
+        val arguments = mutableListOf<Any?>()
+        arguments.add(name)
+        arguments.add(howToPublish.rawValue)
+        message.arguments = arguments
+
+        when (readyState) {
+            ReadyState.INITIALIZED, ReadyState.CLOSED -> {
+                messages.add(message)
+            }
+
+            ReadyState.OPEN -> {
+                connection.doOutput(RtmpChunk.ZERO, message)
+                readyState = ReadyState.PUBLISH
+            }
+
+            else -> {}
+        }
+    }
+
+    /**
+     * Requests playback of a server stream or recording.
+     *
+     * The request is queued until the server stream is created. Status events report the outcome.
+     *
+     * @param arguments The stream name followed by any server-supported play arguments. An empty
+     * argument list sends a close-stream request if the stream is currently playing.
+     */
+    fun play(vararg arguments: Any) {
+        val streamName = if (arguments.isEmpty()) null else arguments[0]
+        val message = RtmpCommandMessage(connection.objectEncoding)
+        message.transactionID = 0
+        message.commandName = if (streamName != null) "play" else "closeStream"
+        message.arguments = listOf(*arguments)
+        message.chunkStreamID = RtmpChunk.CONTROL
+        message.streamID = id
+
+        if (streamName == null) {
+            when (readyState) {
+                ReadyState.PLAYING -> {
+                    connection.doOutput(RtmpChunk.ZERO, message)
+                }
+
+                else -> {}
+            }
+            return
+        }
+
+        when (readyState) {
+            ReadyState.INITIALIZED, ReadyState.CLOSED -> {
+                messages.add(message)
+            }
+
+            ReadyState.OPEN, ReadyState.PLAYING -> {
+                connection.doOutput(RtmpChunk.ZERO, message)
+            }
+
+            else -> {
+            }
+        }
+    }
+
+    /**
+     * Sends an RTMP data message on this stream.
+     *
+     * Does nothing while the stream is initialized or closed.
+     *
+     * @param handlerName The data message handler name, such as `onMetaData`.
+     * @param arguments The values to include in the message.
+     */
+    fun send(
+        handlerName: String,
+        vararg arguments: Any,
+    ) {
+        if (readyState == ReadyState.INITIALIZED || readyState == ReadyState.CLOSED) {
+            return
+        }
+        val message = RtmpDataMessage(connection.objectEncoding)
+        message.handlerName = handlerName
+        arguments.forEach { value ->
+            message.arguments.add(value)
+        }
+        message.streamID = id
+        message.chunkStreamID = RtmpChunk.COMMAND
+        connection.doOutput(RtmpChunk.ZERO, message)
+    }
+
+    /**
+     * Deletes the server stream and stops local media processing. Leaves the connection open.
+     */
+    override fun close() {
+        if (readyState == ReadyState.CLOSED) {
+            return
+        }
+        val message = RtmpCommandMessage(RtmpObjectEncoding.AMF0)
+        message.streamID = 0
+        message.chunkStreamID = RtmpChunk.COMMAND
+        message.commandName = "deleteStream"
+        message.arguments = listOf<Any>(id)
+        connection.doOutput(RtmpChunk.ZERO, message)
+        readyState = ReadyState.CLOSED
+    }
+
+    /**
+     * Removes the connection listener, stops media processing, and releases local stream resources.
+     */
+    override fun dispose() {
+        connection.removeEventListener(Event.RTMP_STATUS, eventListener)
+        stopRunning()
+        super.dispose()
+    }
+
+    override fun addEventListener(
+        type: String,
+        listener: IEventListener,
+        useCapture: Boolean,
+    ) {
+        dispatcher.addEventListener(type, listener, useCapture)
+    }
+
+    override fun dispatchEvent(event: Event) {
+        dispatcher.dispatchEvent(event)
+    }
+
+    override fun dispatchEventWith(
+        type: String,
+        bubbles: Boolean,
+        data: Any?,
+    ) {
+        dispatcher.dispatchEventWith(type, bubbles, data)
+    }
+
+    override fun removeEventListener(
+        type: String,
+        listener: IEventListener,
+        useCapture: Boolean,
+    ) {
+        dispatcher.removeEventListener(type, listener, useCapture)
+    }
+
+    override fun startRunning() {
+        if (isRunning.get()) return
+        muxer.clear()
+        audioCodec.listener = muxer
+        videoCodec.listener = muxer
+        super.startRunning()
+    }
+
+    internal fun configure(inputMimeType: String) {
+        audioCodec.inputMimeType = MediaFormat.MIMETYPE_AUDIO_AAC
+        audioCodec.startRunning()
+        hasAudio = true
+    }
+
+    internal fun configure(decoderConfigurationRecord: DecoderConfigurationRecord): Boolean {
+        if (decoderConfigurationRecord.configure(videoCodec)) {
+            decoderConfigurationRecord.videoSize?.let {
+                screen.frame = Rect(0, 0, it.width, it.height)
+                video.videoSize = it
+                screen.attachVideo(
+                    0,
+                    VideoCodecSource(videoCodec).apply {
+                        videoSize = it
+                    },
+                )
+            }
+            videoCodec.startRunning()
+            hasVideo = true
+            return true
+        }
+        return false
+    }
+
+    internal fun doOutput(
+        chunk: RtmpChunk,
+        message: RtmpMessage,
+    ) {
+        chunk.encode(connection.socket, message)
+    }
+
+    internal fun on() {
+        currentFPS = frameCount.get()
+        frameCount.set(0)
+        listener?.onStatics(this, connection)
+    }
+
+    internal fun withInputBuffer(
+        type: MediaType,
+        instance: MediaCodec,
+        index: Int,
+        action: (ByteBuffer) -> Unit,
+    ) {
+        val owner = if (type == MediaType.AUDIO) audioCodec else videoCodec
+        owner.withCurrentCodec(instance) {
+            instance.getInputBuffer(index)?.let(action)
+        }
+    }
+
+    private fun toMetaData(): Map<String, Any> {
+        val metadata = mutableMapOf<String, Any>()
+        if (hasVideo) {
+            metadata["width"] = videoCodec.width
+            metadata["height"] = videoCodec.height
+            metadata["framerate"] = videoCodec.frameRate
+            when (videoCodec.profileLevel.mime) {
+                MediaFormat.MIMETYPE_VIDEO_HEVC ->
+                    metadata["videocodecid"] = RtmpMuxer.FLV_VIDEO_FOUR_CC_HVC1
+
+                MediaFormat.MIMETYPE_VIDEO_AVC -> {
+                    metadata["videocodecid"] = RtmpMuxer.FLV_VIDEO_CODEC_AVC.toInt()
+                }
+
+                else -> {
+                    Log.w(TAG, "not set a videocodecid for ${videoCodec.profileLevel.mime}")
+                }
+            }
+            metadata["videodatarate"] = videoCodec.bitRate / 1000
+        }
+        if (hasAudio) {
+            metadata["audiocodecid"] = RtmpMuxer.FLV_AUDIO_CODEC_AAC.toInt()
+            metadata["audiodatarate"] = audioCodec.bitRate / 1000
+        }
+        return metadata
+    }
+
+    companion object {
+        private const val DEFAULT_TIMESTAMP = 0
+        private val TAG = RtmpStream::class.java.simpleName
+    }
+}
