@@ -21,15 +21,15 @@ android {
     }
 }
 
+// Loại bỏ hoàn toàn khối repositories phụ thuộc mạng ngoài nếu không cần thiết
 repositories {
     google()
     mavenCentral()
-    maven { url 'https://jitpack.io' }
 }
 
 dependencies {
     implementation project(':capacitor-android')
 
-    implementation 'com.github.HaishinKit.HaishinKit-kt:haishinkit:0.13.0'
-    implementation 'com.github.HaishinKit.HaishinKit-kt:rtmp:0.13.0'
+    // Trỏ trực tiếp tới các file .aar đặt trong thư mục libs cục bộ
+    implementation fileTree(dir: 'libs', include: ['*.aar'])
 }
