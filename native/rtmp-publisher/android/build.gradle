@@ -25,11 +25,7 @@ android {
 repositories {
     google()
     mavenCentral()
-    maven {
-        url 'https://jitpack.io'
-    }
-}
-
+    maven  { url '[https://jitpack.io](https://jitpack.io)' }
 dependencies {
     implementation project(':capacitor-android')
 
